@@ -7,7 +7,7 @@ from collections import defaultdict
 import json
 import os
 import glob
-
+from .ignore import files_to_ignore
 
 app = Flask(__name__)
 
@@ -35,25 +35,34 @@ def process_regular_file(file_name):
 
     with open(file_name, "r") as source:
         tree = ast.parse(source.read())
-    root_node = defaultdict(list)
 
+    root_node = defaultdict(list)
     return parse_node(tree, root_node)
 
 
-def process_directory(root_name, file_name):
-    print(file_name)
+def process_directory(root_name, real_name):
+    # Correct file_name
+    file_name = os.path.join(real_name, '*')
+
     package_nodes = list()
-    for file in glob.iglob(file_name + '/*', recursive=True):
+    for file in glob.iglob(file_name, recursive=True):
+        simple_name = os.path.relpath(file, root_name)
+
         if os.path.isfile(file) and file.endswith('.py'):
-            package_nodes.append(process_regular_file(file))
+            processed_node = process_regular_file(file)
+            processed_node['short_name'] = os.path.basename(file)
+            processed_node['name'] = simple_name
+            processed_node['full_name'] = file
+            package_nodes.append(processed_node)
+
         elif os.path.isdir(file):
-            simple_name = get_simple_name(file, root_name)
-            package_nodes.append({simple_name: process_directory(root_name, file)})
+            # Ignore some files
+            if simple_name not in files_to_ignore:
+                child_nodes = process_directory(root_name, file)
+                if child_nodes:
+                    package_nodes.append({simple_name: child_nodes})
+
     return package_nodes
-
-
-def get_simple_name(file_path, root_path):
-    return os.path.relpath(file_path, root_path)
 
 
 def raw_source_file(file_name):
