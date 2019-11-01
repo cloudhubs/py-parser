@@ -7,6 +7,10 @@ from collections import defaultdict
 import json
 import os
 import glob
+import validators
+from git import Repo
+import tempfile
+
 from .ignore import files_to_ignore
 
 app = Flask(__name__)
@@ -19,7 +23,11 @@ class NodeType(Enum):
     STATEMENTS = 'statements'
 
 
-def parse_source_file(file_name):
+def parse_source_file(file_name, project_name=None):
+    # If url, process url first
+    if validators.url(file_name):
+        return process_url(file_name)
+
     # if file path determine if single file or directory
     if os.path.isfile(file_name):
         return json.dumps(process_regular_file(file_name), separators=(',', ':'))
@@ -27,9 +35,18 @@ def parse_source_file(file_name):
     # if directory go through all files recursively
     if os.path.isdir(file_name):
         results = dict()
-        project_name = os.path.basename(file_name)
+        if not project_name:
+            project_name = os.path.basename(file_name)
         results[project_name] = process_directory(file_name, file_name)
         return json.dumps(results, separators=(',', ':'))
+
+
+def process_url(git_url):
+    # Download the project locally
+    with tempfile.TemporaryDirectory() as temp_dirname:
+        Repo.clone_from(git_url, temp_dirname)
+        # Run analysis
+        return parse_source_file(temp_dirname, git_url.rsplit('/', 1)[-1])
 
 
 def process_regular_file(file_name):
