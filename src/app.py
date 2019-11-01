@@ -26,7 +26,10 @@ def parse_source_file(file_name):
 
     # if directory go through all files recursively
     if os.path.isdir(file_name):
-        return json.dumps(process_directory(file_name, file_name), separators=(',', ':'))
+        results = dict()
+        project_name = os.path.basename(file_name)
+        results[project_name] = process_directory(file_name, file_name)
+        return json.dumps(results, separators=(',', ':'))
 
 
 def process_regular_file(file_name):
