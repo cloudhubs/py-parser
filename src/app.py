@@ -7,7 +7,7 @@ from collections import defaultdict
 import json
 import os
 import glob
-import validators
+from urllib.parse import urlparse
 from git import Repo
 import tempfile
 
@@ -25,12 +25,12 @@ class NodeType(Enum):
 
 def parse_source_file(file_name, project_name=None):
     # If url, process url first
-    if validators.url(file_name):
+    if urlparse(file_name).scheme in ('http', 'https'):
         return process_url(file_name)
 
     # if file path determine if single file or directory
     if os.path.isfile(file_name):
-        return json.dumps(process_regular_file(file_name), separators=(',', ':'))
+        return process_regular_file(file_name)
 
     # if directory go through all files recursively
     if os.path.isdir(file_name):
@@ -38,7 +38,7 @@ def parse_source_file(file_name, project_name=None):
         if not project_name:
             project_name = os.path.basename(file_name)
         results[project_name] = process_directory(file_name, file_name)
-        return json.dumps(results, separators=(',', ':'))
+        return results
 
 
 def process_url(git_url):
@@ -149,13 +149,19 @@ def hello_world():
 @app.route('/parse', methods=['POST'])
 def parser():
     request_data = request.get_json()
-    return parse_source_file(request_data['fileName'])
+    results = parse_source_file(request_data['fileName'])
+    return to_json(results)
 
 
 @app.route('/raw', methods=['POST'])
 def raw():
     request_data = request.get_json()
-    return raw_source_file(request_data['fileName'])
+    results = raw_source_file(request_data['fileName'])
+    return to_json(results)
+
+
+def to_json(data):
+    return json.dumps(data, separators=(',', ':'))
 
 
 if __name__ == '__main__':
