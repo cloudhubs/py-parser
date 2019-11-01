@@ -2,183 +2,131 @@ from flask import Flask
 from flask import request
 import ast
 import jsonpickle
+from enum import Enum
+from collections import defaultdict
+import json
+import os
+import glob
 
 
 app = Flask(__name__)
 
 
-def auto_str(cls):
-    def __str__(self):
-        return '%s(%s)' % (
-            type(self).__name__,
-            ', '.join('%s=%s' % item for item in vars(self).items())
-        )
-    cls.__str__ = __str__
-    cls.__repr__ = __str__
-    return cls
+class NodeType(Enum):
+    IMPORTS = 'imports'
+    CLASSES = 'classes'
+    FUNCTIONS = 'functions'
+    STATEMENTS = 'statements'
 
 
-def parse_source_code(file_name):
+def parse_source_file(file_name):
+    # if file path determine if single file or directory
+    if os.path.isfile(file_name):
+        return json.dumps(process_regular_file(file_name), separators=(',', ':'))
+
+    # if directory go through all files recursively
+    if os.path.isdir(file_name):
+        return json.dumps(process_directory(file_name, file_name), separators=(',', ':'))
+
+
+def process_regular_file(file_name):
+    if not file_name.endswith('.py'):
+        return None
+
+    with open(file_name, "r") as source:
+        tree = ast.parse(source.read())
+    root_node = defaultdict(list)
+
+    return parse_node(tree, root_node)
+
+
+def process_directory(root_name, file_name):
+    print(file_name)
+    package_nodes = list()
+    for file in glob.iglob(file_name + '/*', recursive=True):
+        if os.path.isfile(file) and file.endswith('.py'):
+            package_nodes.append(process_regular_file(file))
+        elif os.path.isdir(file):
+            simple_name = get_simple_name(file, root_name)
+            package_nodes.append({simple_name: process_directory(root_name, file)})
+    return package_nodes
+
+
+def get_simple_name(file_path, root_path):
+    return os.path.relpath(file_path, root_path)
+
+
+def raw_source_file(file_name):
     with open(file_name, "r") as source:
         tree = ast.parse(source.read())
     tree.name = 'app'
-    module = parse_tree(tree, 'module')
-    return jsonpickle.encode(module, unpicklable=False)
+    return jsonpickle.encode(tree, unpicklable=False)
 
 
-def parse_tree(tree, node_type):
-    ast.dump(tree)
-    name = ''
-    if hasattr(tree, 'name'):
-        name = tree.name
-    analyzer = Analyzer(name, node_type)
-    analyzer.visit(tree)
-    return analyzer.module
-
-
-def parse_children(parent_node, tree):
-    for node in tree.body:
-        print(ast.dump(node))
-        if isinstance(node, ast.FunctionDef):
-            analyzer = Analyzer(node.name, 'function')
-            analyzer.visit(node)
-            parent_node.functions.append(analyzer.module)
-        elif isinstance(node, ast.ClassDef):
-            analyzer = Analyzer(node.name, 'class')
-            analyzer.visit(node)
-            parent_node.classes.append(analyzer.module)
-        elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            for alias in node.names:
-                parent_node.imports.append(alias.name)
-        elif isinstance(node, ast.Expr):
-            analyzer = Analyzer(node.value, 'statement')
-            analyzer.visit(node)
-            # parent_node.statements.append(analyzer.module)
-        elif isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name):
-                name = node.func.id
-            else:
-                name = node.func.value
-            analyzer = Analyzer(name, 'statement')
-            analyzer.visit(node)
-            parent_node.statements.append(analyzer.module)
-        else:
-            print("Not Defined")
-            parent_node.statements.append(node)
+def parse_node(ast_node, node):
+    analyzer = Analyzer(node)
+    analyzer.visit(ast_node)
+    return analyzer.node
 
 
 class Analyzer(ast.NodeVisitor):
-    def __init__(self, name):
-        self.module = PyNode(name)
+    def __init__(self, node):
+        self.node = node
 
-    def visit_Import(self, node):
-        for alias in node.names:
-            self.module.imports.append(alias.name)
-            self.module.node_type = 'import'
+    def visit_Import(self, ast_node):
+        for alias in ast_node.names:
+            self.node[NodeType.IMPORTS.value].append(alias.name)
 
-    def visit_ImportFrom(self, node):
-        for alias in node.names:
-            self.module.imports.append(alias.name)
-            self.module.node_type = 'import'
+    def visit_ImportFrom(self, ast_node):
+        for alias in ast_node.names:
+            self.node[NodeType.IMPORTS.value].append(alias.name)
 
-    def visit_Expr(self, node):
-        state_node = PyExpression(node.value)
-        self.module.statements.append(state_node)
-        self.module.node_type = 'statement'
+    def visit_ClassDef(self, ast_node):
+        node = defaultdict(list)
+        node['name'] = ast_node.name
 
-    def visit_Call(self, node):
-        _node = PyFuncCallExpr(node)
-        self.module.statements.append(_node)
-        self.module.node_type = 'statement'
+        node['bases'] = list()
+        for base in ast_node.bases:
+            if isinstance(base, ast.Name):
+                node['bases'].append(base.id)
+            elif isinstance(base, ast.Attribute):
+                node['bases'].append(base.attr)
 
-    def visit_FunctionDef(self, node):
-        _node = PyNode(node.name, 'function')
-        parse_children(_node, node)
-        self.module.functions.append(_node)
+        for ast_child_node in ast_node.body:
+            parse_node(ast_child_node, node)
+        self.node[NodeType.CLASSES.value].append(node)
 
-    def visit_ClassDef(self, node):
-        _node = PyNode(node.name, 'class')
-        parse_children(_node, node)
-        self.module.classes.append(_node)
+    def visit_FunctionDef(self, ast_node):
+        node = defaultdict(list)
+        node['name'] = ast_node.name
 
-    # def visit_If(self, node):
-    #     _node = PyNode(node, 'statement')
-    #     parse_children(_node, node)
-    #     self.module.statements.append(_node)
-    #
-    # def visit_Assign(self, node):
-    #     _node = PyNode(node, 'statement')
-    #     self.module.statements.append(_node)
+        node['args'] = list()
+        for arg in ast_node.args.args:
+            node['args'].append(arg.arg)
 
+        # node['returns'] = ast_node.returns
 
-@auto_str
-class PyNode:
+        for ast_child_node in ast_node.body:
+            parse_node(ast_child_node, node)
 
-    def __init__(self, name, node_type):
-        self.name = name
-        self.node_type = node_type
-        self.imports = []
-        self.classes = []
-        self.functions = []
-        self.statements = []
-
-
-@auto_str
-class PyClass:
-
-    def __init__(self):
-        self.name = ''
-        self.methods = []
-        self.statements = []
-
-
-@auto_str
-class PyFunction:
-    def __init__(self):
-        self.name = ''
-        self.expressions = []
-
-
-@auto_str
-class PyExpression:
-    def __init__(self, expr):
-        self.expr = expr
-        self.type = 'simple_statement'
-
-
-@auto_str
-class PyFuncCallExpr:
-    def __init__(self, expr):
-        self.func = expr.func
-        self.args = expr.args
-        self.keywords = expr.keywords
-        self.type = 'function_call'
-
-
-def remove_empty_elements(d):
-    print("Enter")
-    """recursively remove empty lists, empty dicts, or None elements from a dictionary"""
-    def empty(x):
-        return x is None or x == {} or x == []
-
-    if not isinstance(d, (dict, list)):
-        return d
-    elif isinstance(d, list):
-        return [v for v in (remove_empty_elements(v) for v in d) if not empty(v)]
-    else:
-        print("Here")
-        return {k: v for k, v in ((k, remove_empty_elements(v)) for k, v in d.items()) if not empty(v)}
+        self.node[NodeType.FUNCTIONS.value].append(node)
 
 
 @app.route('/')
 def hello_world():
-    return 'Hello World!'
+    return 'Hello I\'m PyParser!'
 
 
 @app.route('/parse', methods=['POST'])
 def parser():
     request_data = request.get_json()
-    return parse_source_code(request_data['fileName'])
+    return parse_source_file(request_data['fileName'])
+
+
+@app.route('/raw', methods=['POST'])
+def raw():
+    request_data = request.get_json()
+    return raw_source_file(request_data['fileName'])
 
 
 if __name__ == '__main__':
