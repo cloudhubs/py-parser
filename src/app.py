@@ -197,7 +197,7 @@ def raw():
 
 
 def to_json(data):
-    return json.dumps(data, separators=(',', ':'))
+    return jsonpickle.encode(data, unpicklable=False)
 
 
 if __name__ == '__main__':
