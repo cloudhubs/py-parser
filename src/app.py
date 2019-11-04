@@ -140,6 +140,42 @@ class Analyzer(ast.NodeVisitor):
 
         self.node[NodeType.FUNCTIONS.value].append(node)
 
+    def visit_Call(self, ast_node):
+        node = dict()
+        node['type'] = 'function_call'
+
+        func = ast_node.func
+
+        if isinstance(func, ast.Name):
+            node['func'] = func.id
+        elif isinstance(func, ast.Attribute):
+            node['func'] = func.attr
+
+        node['args'] = list()
+        for arg in ast_node.args:
+            if isinstance(arg, ast.Name):
+                node['args'].append(arg.id)
+            elif isinstance(arg, ast.Call):
+                call_dict = defaultdict(list)
+                parse_node(arg, call_dict)
+                node['args'].append(call_dict)
+            elif isinstance(arg, ast.Num):
+                node['args'].append(arg.n)
+            elif isinstance(arg, ast.Str):
+                node['args'].append(arg.s)
+
+        node['keywords'] = list()
+        for keyword in ast_node.keywords:
+            node['keywords'].append(keyword.arg)
+
+        self.node[NodeType.STATEMENTS.value].append(node)
+
+    def visit_Name(self, ast_node):
+        node = dict()
+        node['name'] = ast_node.id
+        node['type'] = ast_node.ctx
+        self.node['statements'].append(node)
+
 
 @app.route('/')
 def hello_world():
