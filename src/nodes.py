@@ -1,9 +1,16 @@
 class PySystem:
     def __init__(self, name):
         self.name = name
+        self.apps = list()
+        self.type = 'system'
+
+
+class PyApp:
+    def __init__(self, name):
+        self.name = name
         self.modules = list()
         self.packages = list()
-        self.type = 'system'
+        self.type = 'app'
 
 
 class PyModule:
@@ -46,7 +53,7 @@ class PyClass:
 
 class PyBase:
     def __init__(self):
-        self.id = ''
+        self.name = ''
         self.value = ''
         self.type = 'base_class'
 
