@@ -12,11 +12,13 @@ app = Flask(__name__)
 
 @app.route('/')
 def hello_world():
+    # Handshake Endpoint
     return 'Hello I\'m PyParser!'
 
 
 @app.route('/parse', methods=['POST'])
 def parser():
+    # Generates a parsed tree for a project
     request_data = request.get_json()
     results = parse_source_file(request_data['fileName'])
     return app.response_class(
@@ -28,6 +30,7 @@ def parser():
 
 @app.route('/interface', methods=['POST'])
 def interface():
+    # Generates interfaces for a project
     request_data = request.get_json()
     results = system_interfaces(request_data['fileName'])
     return app.response_class(

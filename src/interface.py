@@ -1,9 +1,10 @@
 import ast
 import os
 from collections import namedtuple
+import importlib
 
 
-class EndPoint:
+class EntryPoint:
     def __init__(self):
         self.name = None
         self.func_name = None
@@ -42,20 +43,6 @@ def system_interfaces(file_name, project_name=None):
         return None
 
 
-def get_end_points(ast_node):
-    points = list()
-
-    for node in ast.walk(ast_node):
-        if isinstance(node, ast.FunctionDef):
-            if 'request' in node.args:
-                point = EndPoint()
-                point.name = node.name
-                point.func_name = node.name
-                points.append(point)
-
-    return points
-
-
 def get_imports(root):
     Import = namedtuple("Import", ["module", "name", "alias"])
 
@@ -71,7 +58,10 @@ def get_imports(root):
             yield Import(module, n.name.split('.'), n.asname)
 
 
-def get_exit_points(ast_node, file_name):
+def get_exit_points(file_name):
+    with open(file_name, "r") as source:
+        ast_node = ast.parse(source.read())
+
     points = list()
 
     # If module does not import the requests module,
@@ -124,14 +114,7 @@ def get_exit_points(ast_node, file_name):
 def process_regular_file(file_name, system):
     if not file_name.endswith('.py'):
         return None
-
-    with open(file_name, "r") as source:
-        tree = ast.parse(source.read())
-
-    # end_points = get_end_points(tree)
-    exit_points = get_exit_points(tree, file_name)
-
-    # system.end_points.extend(end_points)
+    exit_points = get_exit_points(file_name)
     system.exit_points.extend(exit_points)
 
 
@@ -145,28 +128,16 @@ def process_directory(app_node, root_name, file_path):
         elif os.path.isdir(full_name):
             process_directory(app_node, root_name, full_name)
 
+    end_points = get_end_points(root_name)
+    app_node.end_points.extend(end_points)
+
     return app_node
 
 
-def process_project(file_path):
-    # Find manage.py
-    manage = 'manage.py'
-    manage = os.path.join(file_path, manage)
-    with open(manage, "r") as source:
-        tree = ast.parse(source.read())
-    setting_path = get_project_settings(tree)
-
-    setting_path = format_path(file_path, setting_path)
-    with open(setting_path, "r") as source:
-        tree = ast.parse(source.read())
-    root_conf = get_root_conf(tree)
-
-    root_conf = format_path(file_path, root_conf)
-    with open(root_conf, "r") as source:
-        tree = ast.parse(source.read())
-    project_url_files = get_urls(tree)
-
-    # for each file retrieve files
+def format_path(root_path, curr_file):
+    curr_file = curr_file.replace('.', '/')
+    curr_file = curr_file + '.py'
+    return os.path.join(root_path, curr_file)
 
 
 def get_project_settings(manage_node):
@@ -188,6 +159,10 @@ def get_root_conf(setting_node):
 
 
 def get_urls(root_url_node):
+    # Get import objects
+    imports = get_imports(root_url_node)
+
+    # Process imports
     for node in ast.walk(root_url_node):
         if isinstance(node, ast.Assign):
             targets = node.targets
@@ -206,6 +181,23 @@ def get_urls(root_url_node):
     raise Exception("URL Patterns configuration not found")
 
 
-def get_all_url_view_pairs(root_url_node):
-    return ''
+def get_end_points(file_path):
+    # Find manage.py
+    manage = 'manage.py'
+    manage = os.path.join(file_path, manage)
+    with open(manage, "r") as source:
+        tree = ast.parse(source.read())
+    setting_path = get_project_settings(tree)
+
+    setting_path = format_path(file_path, setting_path)
+    with open(setting_path, "r") as source:
+        tree = ast.parse(source.read())
+    root_conf = get_root_conf(tree)
+
+    root_conf = format_path(file_path, root_conf)
+    with open(root_conf, "r") as source:
+        tree = ast.parse(source.read())
+    project_url_patterns = get_urls(tree)
+
+    return project_url_patterns
 

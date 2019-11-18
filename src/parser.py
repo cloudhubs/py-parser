@@ -3,7 +3,6 @@ import os
 import tempfile
 from enum import Enum
 from urllib.parse import urlparse
-from git import Repo
 from .nodes import *
 
 
@@ -27,8 +26,8 @@ class ComponentType(Enum):
 
 def parse_source_file(file_name, project_name=None):
     # If url, process url first
-    if urlparse(file_name).scheme in ('http', 'https'):
-        return process_url(file_name)
+    # if urlparse(file_name).scheme in ('http', 'https'):
+    #     return process_url(file_name)
 
     # if file path determine if single file or directory
     if os.path.isfile(file_name):
@@ -45,12 +44,12 @@ def parse_source_file(file_name, project_name=None):
         return system
 
 
-def process_url(git_url):
-    # Download the project locally
-    with tempfile.TemporaryDirectory() as temp_dirname:
-        Repo.clone_from(git_url, temp_dirname)
-        # Run analysis
-        return parse_source_file(temp_dirname, git_url.rsplit('/', 1)[-1])
+# def process_url(git_url):
+#     # Download the project locally
+#     with tempfile.TemporaryDirectory() as temp_dirname:
+#         Repo.clone_from(git_url, temp_dirname)
+#         # Run analysis
+#         return parse_source_file(temp_dirname, git_url.rsplit('/', 1)[-1])
 
 
 def process_regular_file(file_name):
