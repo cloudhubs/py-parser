@@ -1,7 +1,10 @@
+#!/usr/bin/env python3
+
 import jsonpickle
 from flask import Flask
 from flask import request
-from .parser import parse_source_file
+from src.parser import parse_source_file
+from src.interface import system_interfaces
 
 
 app = Flask(__name__)
@@ -26,7 +29,7 @@ def parser():
 @app.route('/interface', methods=['POST'])
 def interface():
     request_data = request.get_json()
-    results = parse_source_file(request_data['fileName'])
+    results = system_interfaces(request_data['fileName'])
     return app.response_class(
         response=jsonpickle.encode(results, unpicklable=False),
         status=200,
