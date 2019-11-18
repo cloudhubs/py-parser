@@ -146,3 +146,66 @@ def process_directory(app_node, root_name, file_path):
             process_directory(app_node, root_name, full_name)
 
     return app_node
+
+
+def process_project(file_path):
+    # Find manage.py
+    manage = 'manage.py'
+    manage = os.path.join(file_path, manage)
+    with open(manage, "r") as source:
+        tree = ast.parse(source.read())
+    setting_path = get_project_settings(tree)
+
+    setting_path = format_path(file_path, setting_path)
+    with open(setting_path, "r") as source:
+        tree = ast.parse(source.read())
+    root_conf = get_root_conf(tree)
+
+    root_conf = format_path(file_path, root_conf)
+    with open(root_conf, "r") as source:
+        tree = ast.parse(source.read())
+    project_url_files = get_urls(tree)
+
+    # for each file retrieve files
+
+
+def get_project_settings(manage_node):
+    for node in ast.walk(manage_node):
+        if isinstance(node, ast.Call):
+            args = node.args
+            if len(args) == 2 and args[0].s == 'DJANGO_SETTINGS_MODULE':
+                return args[1].s
+    raise Exception("Settings configuration not found")
+
+
+def get_root_conf(setting_node):
+    for node in ast.walk(setting_node):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            if targets[0].id == 'ROOT_URLCONF':
+                return node.value.s
+    raise Exception("Root URL configuration not found")
+
+
+def get_urls(root_url_node):
+    for node in ast.walk(root_url_node):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            if targets[0].id == 'urlpatterns':
+                res = []
+                for match in node.value.elts:
+                    n = {}
+                    if match.func.id == 'path':
+                        n['path'] = match.args[0].s
+                        value = match.args[1]
+                        if isinstance(value, ast.Call):
+                            pass
+                        print(ast.dump(match))
+                    res.append(n)
+                return res
+    raise Exception("URL Patterns configuration not found")
+
+
+def get_all_url_view_pairs(root_url_node):
+    return ''
+
