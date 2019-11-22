@@ -6,7 +6,8 @@ import importlib
 import importlib.util
 import os.path
 import astor
-from astroid import parse
+import astroid
+import glob
 
 
 class EntryPoint:
@@ -39,13 +40,11 @@ class Interface:
 def system_interfaces(file_name, project_name=None):
     if not project_name:
         project_name = os.path.basename(file_name)
-
     interface = Interface(project_name)
-    process_project(interface, file_name)
-
-    # end_points = get_end_points(file_name)
-    # interface.end_points.extend(end_points)
-
+    exit_points = process_exit_points(file_name)
+    end_points = get_end_points(file_name)
+    interface.exit_points.extend(exit_points)
+    interface.end_points.extend(end_points)
     return interface
 
 
@@ -65,76 +64,69 @@ def get_imports(root):
                 yield Import(module, name_, n.asname)
 
 
+def check_if_request(node):
+    if node.is_statement:
+        value = node.value
+        if hasattr(value, 'func'):
+            func = value.func
+            if hasattr(func, 'expr'):
+                expr = func.expr
+                if hasattr(expr, 'name'):
+                    name = expr.name
+                    if name == 'requests':
+                        return True
+    return False
+
+
+def get_request_statements(root):
+    if isinstance(root, astroid.nodes.Assign):
+        if check_if_request(root):
+            yield root
+
+    for n in root.get_children():
+        yield from get_request_statements(n)
+
+
 def get_exit_points(file_name):
     with open(file_name, "r") as source:
-        ast_node = parse(source.read())
+        ast_node = astroid.parse(source.read())
 
-    points = list()
+    exit_points = list()
 
-    # If module does not import the requests module,
-    # skip it
-    has_requests = False
-    request_name = ''
+    for node in get_request_statements(ast_node):
+        point = ExitPoint()
+        point.name = node.value.func.attrname
+        point.file_name = file_name
+        point.func_name = node.parent.name
+        point.path = node.value.args[0].value
+        point.line_no = node.lineno
+        payload = {}
+        response = {}
 
-    for imp in get_imports(ast_node):
-        if 'requests' in imp.name:
-            has_requests = True
-            if imp.alias:
-                request_name = imp.alias
-            else:
-                request_name = 'requests'
-            break
+        # Try and extract payload
+        if len(node.value.args) > 1:
+            data = next(node.value.args[1].infer())
+            if data:
+                attrs = data.instance_attrs
+                for key, value in attrs.items():
+                    payload[key] = next(attrs[key][-1].infer()).value
 
-    if not has_requests:
-        return points
+        # Try and extract response
+        if node.targets:
+            v = next(node.targets[0].infer())
+            if not v == astroid.util.Uninferable:
+                response = v
 
-    supported_endpoints = ['post', 'get', 'put', 'delete']
-
-    for func_node in ast.walk(ast_node):
-        if isinstance(func_node, ast.FunctionDef):
-            for node in ast.walk(func_node):
-                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-                    func = node.func
-                    value = func.value
-                    if hasattr(value, 'id') and \
-                            value.id == request_name and \
-                            func.attr in supported_endpoints:
-
-                        point = ExitPoint()
-                        point.name = func.attr
-                        point.func_name = func_node.name
-                        point.path = node.args[0].s
-                        point.line_no = node.lineno
-                        point.file_name = file_name
-
-                        # for key in node.keywords:
-                        #     print('data')
-                        #     if key.arg == 'data':
-                        #         data = dict()
-                        #         for i in range(len(key.value.keys)):
-                        #             data[key.value.keys[i].s] = key.value.values[i].s
-                        #         point.payload = data
-                        #         point.response = find_response(func_node, node)
-                        #         break
-
-                        print(astor.dump_tree(node))
-
-                        points.append(point)
-    return points
+        point.payload = payload
+        point.response = response
+        exit_points.append(point)
+    return exit_points
 
 
-def find_response(func_node, req_node):
-    for e_node in ast.walk(func_node):
-        if isinstance(req_node, ast.Assign):
-            print(ast.dump(e_node))
-    return {}
-
-
-def process_project(system, project_path):
+def process_exit_points(project_path):
     for path, file_name in astor.code_to_ast.find_py_files(project_path):
         file_path = os.path.join(path, file_name)
-        exit_points = get_exit_points(file_path)
-        system.exit_points.extend(exit_points)
+        return get_exit_points(file_path)
 
 
 def format_path(root_path, curr_file):
@@ -287,4 +279,10 @@ def get_end_points(file_path):
     project_url_patterns = get_urls(tree, file_path)
 
     return project_url_patterns
+
+
+def find_py_files(src):
+    file_paths = os.path.join(src, '*.py')
+    for file in glob.glob(file_paths):
+        yield file
 
