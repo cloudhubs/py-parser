@@ -16,6 +16,8 @@ class EntryPoint:
         self.func_name = None
         self.path = None
         self.payload = None
+        self.payload_meta = None
+        self.response_meta = None
         self.response = None
         self.line_no = None
         self.decorators = list()
@@ -323,12 +325,15 @@ def process_file_for_url_patterns(root_file, file_name):
                     end_point.name = view_func.name
                     end_point.func_name = file_
 
-                    payload = dict()
+                    payloads = list()
                     for arg in view_func.args.args:
+                        payload = dict()
                         arg_name = arg.name
-                        payload[arg_name] = {}
+                        payload['name'] = arg_name
 
-                    end_point.payload = payload
+                        payloads.append(payload)
+
+                    end_point.payload = payloads
 
                     response = {}
                     end_point.response = response
