@@ -32,6 +32,8 @@ class ExitPoint:
         self.payload = None
         self.response = None
         self.file_name = None
+        self.payload_meta = None
+        self.response_meta = None
 
 
 class Interface:
@@ -105,7 +107,9 @@ def get_exit_points(file_name):
         point.path = node.value.args[0].value
         point.line_no = node.lineno
         payload = {}
+        payload_info = {}
         response = {}
+        response_info = {}
 
         # Try and extract payload
         if len(node.value.args) > 1:
@@ -114,6 +118,15 @@ def get_exit_points(file_name):
                 attrs = data.instance_attrs
                 for key, value in attrs.items():
                     payload[key] = next(attrs[key][-1].infer()).value
+                payload_info['name'] = data.name
+                payload_info['type'] = data.type
+                payload_info['instance_attr'] = list()
+                for key, _ in attrs.items():
+                    payload_info['instance_attr'].append(key)
+                payload_info['funcs'] = list()
+                for n in data.get_children():
+                    if isinstance(n, astroid.nodes.FunctionDef):
+                        payload_info['funcs'].append(n.name)
 
         # Try and extract response
         if node.targets:
@@ -122,7 +135,10 @@ def get_exit_points(file_name):
                 response = v
 
         point.payload = payload
+        point.payload_meta = payload_info
         point.response = response
+        point.response_meta = response_info
+
         exit_points.append(point)
     return exit_points
 
