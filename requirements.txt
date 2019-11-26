@@ -1,3 +1,4 @@
+pylint
 astroid
 astor
 Click==7.0
