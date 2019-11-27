@@ -1,6 +1,7 @@
 import astroid
 import astor
 import os
+from src.util import ast_walk
 
 
 class ExitPoint:
@@ -104,12 +105,6 @@ def find_parent_function(root):
         return find_parent_function(root.parent)
 
 
-def ast_walk(root):
-    yield root
-    for node in root.get_children():
-        yield from ast_walk(node)
-
-
 def find_statement_node(expr):
     state = expr
     while not state.is_statement and hasattr(state, 'parent'):
@@ -179,9 +174,8 @@ def get_node_value(node):
     return ''
 
 
-def process_response(expr_node, result):
+def process_response(response_node, result):
     response = dict()
     response_meta = dict()
-
     result.response = response
     result.response_meta = response_meta

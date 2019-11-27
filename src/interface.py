@@ -1,8 +1,8 @@
 import os
 import os.path
-import ntpath
-from .exit_points import process_exit_points
-from .entry_points import get_end_points
+from src.exit_points import process_exit_points
+from src.entry_points import get_end_points
+from src.util import path_leaf
 
 
 class System:
@@ -47,7 +47,3 @@ def system_interfaces(file_name, project_name=None):
 
     return system
 
-
-def path_leaf(path):
-    head, tail = ntpath.split(path)
-    return tail or ntpath.basename(head)
