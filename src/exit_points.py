@@ -30,49 +30,26 @@ def get_exit_points(file_name):
 
     exit_points = list()
 
-    for node in get_request_statements(ast_node):
+    for node in find_request_from_walk(ast_node):
         point = ExitPoint()
-        print(node.as_string())
+        scope_func = node.scope()
+        statement = find_statement_node(node)
 
-        point.name = node.value.func.attrname
+        if isinstance(statement, astroid.Assign):
+            response = statement.targets[0]
+            request = statement.value
+            process_request(request, point)
+            process_response(response, point)
+        elif isinstance(statement, astroid.Expr):
+            request = statement.value
+            process_request(request, point)
+
         point.file_name = file_name
-        point.func_name = find_parent_function(node).name
-        point.path = node.value.args[0].value
+        point.func_name = scope_func.name
         point.line_no = node.lineno
-        payload = {}
-        payload_info = {}
-        response = {}
-        response_info = {}
-
-        # Try and extract payload
-        if len(node.value.args) > 1:
-            data = next(node.value.args[1].infer())
-            if data:
-                attrs = data.instance_attrs
-                for key, value in attrs.items():
-                    payload[key] = next(attrs[key][-1].infer()).value
-                payload_info['name'] = data.name
-                payload_info['type'] = data.type
-                payload_info['instance_attr'] = list()
-                for key, _ in attrs.items():
-                    payload_info['instance_attr'].append(key)
-                payload_info['funcs'] = list()
-                for n in data.get_children():
-                    if isinstance(n, astroid.nodes.FunctionDef):
-                        payload_info['funcs'].append(n.name)
-
-        # Try and extract response
-        if node.targets:
-            v = next(node.targets[0].infer())
-            if not v == astroid.util.Uninferable:
-                response = v
-
-        point.payload = payload
-        point.payload_meta = payload_info
-        point.response = response
-        point.response_meta = response_info
 
         exit_points.append(point)
+
     return exit_points
 
 
@@ -112,7 +89,99 @@ def find_request_from_expr(expr):
     return False
 
 
+def find_request_from_walk(root):
+    for node in ast_walk(root):
+        if hasattr(node, 'name'):
+            name = node.name
+            if name == 'requests':
+                yield node
+
+
 def find_parent_function(root):
     if isinstance(root.parent, astroid.FunctionDef):
         return root.parent
-    else: return find_parent_function(root.parent)
+    else:
+        return find_parent_function(root.parent)
+
+
+def ast_walk(root):
+    yield root
+    for node in root.get_children():
+        yield from ast_walk(node)
+
+
+def find_statement_node(expr):
+    state = expr
+    while not state.is_statement and hasattr(state, 'parent'):
+        state = state.parent
+    return state
+
+
+request_types = ['get', 'post', 'delete', 'put']
+
+
+def find_rest_call_node(node):
+    res = node
+    if res.func.attrname in request_types:
+        return res, res.func.attrname
+    else:
+        return find_rest_call_node(res.func.expr)
+
+
+def process_request(expr_node, result):
+    payload_meta = dict()
+    payload = dict()
+    url = ''
+
+    call_node, request_type = find_rest_call_node(expr_node)
+    request_args = call_node.args
+    url_node = request_args[0]
+
+    if hasattr(url_node, 'value'):
+        url = url_node.value
+    elif isinstance(url_node, astroid.BinOp):
+        url = ''
+        url += get_node_value(url_node.left)
+        url += get_node_value(url_node.right)
+
+    has_payload = len(request_args) > 1
+
+    payload_node = None
+    if has_payload:
+        payload_node = request_args[1]
+
+    if not has_payload and call_node.keywords:
+        for keyword in call_node.keywords:
+            if keyword.arg == 'data':
+                payload_node = keyword.value
+
+    if payload_node:
+        if isinstance(payload_node, astroid.Dict):
+            payload_meta['type'] = payload_node.pytype()
+            payload_meta['name'] = '_dict'
+            payload_meta['props'] = list()
+
+            for key, value in payload_node.items:
+                key = next(key.infer()).value
+                value = next(value.infer()).value
+                payload_meta['props'].append(key)
+                payload[key] = value
+
+    result.name = request_type
+    result.payload_meta = payload_meta
+    result.payload = payload
+    result.path = url
+
+
+def get_node_value(node):
+    if hasattr(node, 'value'):
+        return node.value
+    return ''
+
+
+def process_response(expr_node, result):
+    response = dict()
+    response_meta = dict()
+
+    result.response = response
+    result.response_meta = response_meta

@@ -4,8 +4,7 @@ from pylint import checkers
 from pylint import interfaces
 
 
-class UselessReturnChecker(astroid.bases.):
-    __implements__ = interfaces.IAstroidChecker
+class UselessReturnChecker():
 
     def visit_functiondef(self, node):
         """
