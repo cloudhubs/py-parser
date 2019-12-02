@@ -3,19 +3,7 @@ import os.path
 from src.exit_points import process_exit_points
 from src.entry_points import get_end_points
 from src.util import path_leaf
-
-
-class System:
-    def __init__(self):
-        self.name = ''
-        self.interfaces = list()
-
-
-class Interface:
-    def __init__(self, name):
-        self.name = name
-        self.end_points = list()
-        self.exit_points = list()
+from src.nodes import System, Interface
 
 
 def get_services(project_path):

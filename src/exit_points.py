@@ -2,19 +2,7 @@ import astroid
 import astor
 import os
 from src.util import ast_walk
-
-
-class ExitPoint:
-    def __init__(self):
-        self.name = None
-        self.func_name = None
-        self.path = None
-        self.line_no = None
-        self.payload = None
-        self.response = None
-        self.file_name = None
-        self.payload_meta = None
-        self.response_meta = None
+from src.nodes import Point, Payload
 
 
 def process_exit_points(project_path):
@@ -32,7 +20,7 @@ def get_exit_points(file_name):
     exit_points = list()
 
     for node in find_request_from_walk(ast_node):
-        point = ExitPoint()
+        point = Point()
         scope_func = node.scope()
         statement = find_statement_node(node)
 
@@ -124,8 +112,7 @@ def find_rest_call_node(node):
 
 
 def process_request(expr_node, result):
-    payload_meta = dict()
-    payload = dict()
+    payload_meta = Payload()
     url = ''
 
     call_node, request_type = find_rest_call_node(expr_node)
@@ -152,19 +139,15 @@ def process_request(expr_node, result):
 
     if payload_node:
         if isinstance(payload_node, astroid.Dict):
-            payload_meta['type'] = payload_node.pytype()
-            payload_meta['name'] = '_dict'
-            payload_meta['props'] = list()
+            payload_meta.type = payload_node.pytype()
+            payload_meta.name = '_dict'
 
             for key, value in payload_node.items:
                 key = next(key.infer()).value
-                value = next(value.infer()).value
-                payload_meta['props'].append(key)
-                payload[key] = value
+                payload_meta.props.append(key)
 
     result.name = request_type
-    result.payload_meta = payload_meta
-    result.payload = payload
+    result.payload.append(payload_meta)
     result.path = url
 
 
@@ -175,7 +158,5 @@ def get_node_value(node):
 
 
 def process_response(response_node, result):
-    response = dict()
-    response_meta = dict()
-    result.response = response
-    result.response_meta = response_meta
+    response_meta = Payload()
+    result.response = response_meta

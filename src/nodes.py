@@ -90,3 +90,36 @@ class PyArgCall:
     def __init__(self):
         self.statements = list()
         self.type = 'arg_call'
+
+
+# Interface Nodes
+class Point:
+    def __init__(self):
+        self.name = None
+        self.func_name = None
+        self.path = None
+        self.line_no = None
+        self.payload = list()
+        self.response = None
+        self.file_name = None
+        self.decorators = list()
+
+
+class Payload:
+    def __init__(self):
+        self.type = None
+        self.name = None
+        self.props = list()
+
+
+class System:
+    def __init__(self):
+        self.name = ''
+        self.interfaces = list()
+
+
+class Interface:
+    def __init__(self, name):
+        self.name = name
+        self.end_points = list()
+        self.exit_points = list()

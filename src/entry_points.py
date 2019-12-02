@@ -1,19 +1,7 @@
 import astroid
 import os
 from src.util import ast_walk, path_base
-
-
-class EntryPoint:
-    def __init__(self):
-        self.name = None
-        self.func_name = None
-        self.path = None
-        self.payload = None
-        self.payload_meta = None
-        self.response_meta = None
-        self.response = None
-        self.line_no = None
-        self.decorators = list()
+from src.nodes import Point, Payload
 
 
 def get_project_settings(tree):
@@ -67,7 +55,7 @@ def process_file_for_url_patterns(ast_node, root_file, patterns):
     end_points = list()
 
     for pattern in patterns.elts:
-        end_point = EntryPoint()
+        end_point = Point()
         path = next(pattern.args[0].infer()).value
         end_point.path = path
         # end_point.func_name = pattern
@@ -92,17 +80,11 @@ def process_file_for_url_patterns(ast_node, root_file, patterns):
             end_point.name = view_func.name
             end_point.func_name = file_
 
-            payloads = list()
             for arg in view_func.args.args:
-                payload = dict()
                 arg_name = arg.name
-                payload['name'] = arg_name
+                end_point.payload.append(arg_name)
 
-                payloads.append(payload)
-
-            end_point.payload = payloads
-
-            response = {}
+            response = Payload()
             end_point.response = response
 
             # Decorators
