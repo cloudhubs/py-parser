@@ -3,6 +3,7 @@ import astor
 import os
 from src.util import ast_walk
 from src.nodes import Point, Payload
+from urllib.parse import urlparse
 
 
 def process_exit_points(project_path):
@@ -147,8 +148,9 @@ def process_request(expr_node, result):
                 payload_meta.props.append(key)
 
     result.name = request_type
-    result.payload.append(payload_meta)
-    result.path = url
+    result.payload = payload_meta
+    path = urlparse(url).path
+    result.path = path
 
 
 def get_node_value(node):

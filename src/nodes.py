@@ -99,8 +99,8 @@ class Point:
         self.func_name = None
         self.path = None
         self.line_no = None
-        self.payload = list()
-        self.response = None
+        self.payload = Payload()
+        self.response = Payload()
         self.file_name = None
         self.decorators = list()
 

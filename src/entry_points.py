@@ -1,10 +1,11 @@
 import astroid
 import os
-from src.util import ast_walk, path_base
+from src.util import ast_walk, path_base, decipher_props
 from src.nodes import Point, Payload
 
 
 def get_project_settings(tree):
+    # Helper function to retrieve project's settings file
     for node in ast_walk(tree):
         if isinstance(node, astroid.Name) and node.name == 'os':
             env_node = node.parent
@@ -17,6 +18,7 @@ def get_project_settings(tree):
 
 
 def get_root_conf(tree):
+    # Helper function to retrieve application roof url config
     for node in ast_walk(tree):
         if isinstance(node, astroid.Assign):
             target = node.targets[0]
@@ -26,32 +28,47 @@ def get_root_conf(tree):
 
 
 def get_end_points(file_path):
+    # Retrieve app's manage.py file which contains config for
+    # the oath for the app's settings module
     manage = 'manage.py'
     manage = os.path.join(file_path, manage)
+
     with open(manage, "r") as source:
         tree = astroid.parse(source.read())
+    # Retrieve settings path
     setting_path = get_project_settings(tree)
 
+    # Reformat settings path from dot structure to directory structure
+    # Use settings module to retrieve path to application's url config
     setting_path = format_path(file_path, setting_path)
     with open(setting_path, "r") as source:
         tree = astroid.parse(source.read())
+    # Get app url config
     root_conf = get_root_conf(tree)
 
+    # Reformat from dot to dir
+    # Retrieve project url module and get all the rest end-points
     root_conf = format_path(file_path, root_conf)
     with open(root_conf, "r") as source:
         tree = astroid.parse(source.read())
     url_patterns = tree.lookup('urlpatterns')
     url_patterns = url_patterns[1][0].statement()
+
+    # Process app rest end-points for the views and url
     return process_file_for_url_patterns(tree, path_base(root_conf), url_patterns.value)
 
 
 def format_path(root_path, curr_file):
+    # Converts a dot structure to a directory structure
+    # Eg. abc.edu => abc/edu
     curr_file = curr_file.replace('.', '/')
     curr_file = curr_file + '.py'
     return os.path.join(root_path, curr_file)
 
 
 def process_file_for_url_patterns(ast_node, root_file, patterns):
+    # Take a set of url patterns and retrieves the various properties for the
+    # rest end-points
     end_points = list()
 
     for pattern in patterns.elts:
@@ -75,14 +92,15 @@ def process_file_for_url_patterns(ast_node, root_file, patterns):
             view_el = view.expr.name
             imp = ast_node.lookup(view_el)[1][0]
 
-            view_func, file_ = get_view_at_import(root_file, imp.names[0][0], imp.level, view.attrname)
+            view_func, file_path = get_view_at_import(root_file, imp.names[0][0], imp.level, view.attrname)
             end_point.line_no = view_func.lineno
             end_point.name = view_func.name
-            end_point.func_name = file_
+            end_point.func_name = view_func.name
+            end_point.file_name = file_path
 
-            for arg in view_func.args.args:
-                arg_name = arg.name
-                end_point.payload.append(arg_name)
+            arg = view_func.args.args[0]
+            # end_point.payload.name = arg.name
+            end_point.payload = decipher_props(view_func, arg.name)
 
             response = Payload()
             end_point.response = response
