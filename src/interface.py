@@ -2,16 +2,8 @@ import os
 import os.path
 from src.exit_points import process_exit_points
 from src.entry_points import get_end_points
-from src.util import path_leaf
+from src.util import path_leaf, get_services
 from src.nodes import System, Interface
-
-
-def get_services(project_path):
-    for name in os.listdir(project_path):
-        if not name.startswith('.'):
-            name = os.path.join(project_path, name)
-            if os.path.isdir(name):
-                yield name
 
 
 def system_interfaces(file_name, project_name=None):

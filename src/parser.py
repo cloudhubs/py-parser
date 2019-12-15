@@ -3,7 +3,8 @@ import os
 import tempfile
 from enum import Enum
 from urllib.parse import urlparse
-from .nodes import *
+from src.nodes import *
+from src.util import path_leaf, get_services
 
 
 class NodeType(Enum):
@@ -24,7 +25,7 @@ class ComponentType(Enum):
     GENERIC = 'generic'
 
 
-def parse_source_file(file_name, project_name=None):
+def parse_source_file(file_name):
     # If url, process url first
     # if urlparse(file_name).scheme in ('http', 'https'):
     #     return process_url(file_name)
@@ -35,12 +36,12 @@ def parse_source_file(file_name, project_name=None):
 
     # if directory go through all files recursively
     if os.path.isdir(file_name):
-        if not project_name:
-            project_name = os.path.basename(file_name)
+        project_name = path_leaf(file_name)
         system = PySystem(project_name)
         # TODO get all apps and loop for each app
-        py_app = PyApp(project_name)
-        system.apps.append(process_directory(py_app, file_name, file_name))
+        for service in get_services(file_name):
+            py_app = PyApp(path_leaf(service))
+            system.apps.append(process_directory(py_app, service, service))
         return system
 
 

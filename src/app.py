@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+"""
+Project Interface.
+Provides controller endpoints to various functionalities into the application.
+"""
+
 import jsonpickle
 from flask import Flask
 from flask import request
