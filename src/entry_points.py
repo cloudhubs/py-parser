@@ -5,6 +5,7 @@ from src.nodes import Point, Payload
 
 
 def get_project_settings(tree):
+    # Retrieves the settings config for a Django Project
     for node in ast_walk(tree):
         if isinstance(node, astroid.Name) and node.name == 'os':
             env_node = node.parent
@@ -17,6 +18,7 @@ def get_project_settings(tree):
 
 
 def get_root_conf(tree):
+    # Retrieves the root config for a Django Project
     for node in ast_walk(tree):
         if isinstance(node, astroid.Assign):
             target = node.targets[0]
@@ -26,6 +28,9 @@ def get_root_conf(tree):
 
 
 def get_end_points(file_path):
+    # Process various endpoints of a Django Project
+
+    # Retrieve manage.py config file
     manage = 'manage.py'
     manage = os.path.join(file_path, manage)
     with open(manage, "r") as source:
@@ -78,7 +83,8 @@ def process_file_for_url_patterns(ast_node, root_file, patterns):
             view_func, file_ = get_view_at_import(root_file, imp.names[0][0], imp.level, view.attrname)
             end_point.line_no = view_func.lineno
             end_point.name = view_func.name
-            end_point.func_name = file_
+            end_point.func_name = view_func.name
+            end_point.file_name = file_
 
             for arg in view_func.args.args:
                 arg_name = arg.name
