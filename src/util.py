@@ -23,3 +23,12 @@ def get_services(project_path):
             name = os.path.join(project_path, name)
             if os.path.isdir(name):
                 yield name
+
+def get_files(project_path):
+    for name in os.listdir(project_path):
+        if not name.startswith('.'):
+            name = os.path.join(project_path, name)
+            if os.path.isdir(name):
+                yield from get_files(name)
+            else:
+                yield name
