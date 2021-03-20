@@ -5,7 +5,7 @@ Click==7.0
 Flask==1.1.1
 gitdb2==2.0.6
 itsdangerous==1.1.0
-Jinja2==2.10.3
+Jinja2==2.11.3
 jsonpickle==1.2
 MarkupSafe==1.1.1
 smmap2==2.0.5
